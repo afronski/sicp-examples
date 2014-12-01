@@ -6,3 +6,4 @@ Examples from *Structure and Interpretation of Computer Programs* by H. Abelson,
 - Erlang
 - Scala
 - Haskell
+- Elixir
