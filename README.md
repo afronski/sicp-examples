@@ -4,6 +4,5 @@ Examples from *Structure and Interpretation of Computer Programs* by H. Abelson,
 
 - Clojure
 - Erlang
-- Scala
 - Haskell
 - Elixir
