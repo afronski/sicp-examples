@@ -10,7 +10,7 @@
   (defn dispatch [m]
     (cond (= m 0) x
           (= m 1) y
-          :else (assert false "Argument should be 0 or 1.")))
+          :else (assert (or (= m 1) (= m 0)) "Argument should be 0 or 1.")))
   dispatch)
 
 ;; Those functions are selectors, second
@@ -21,3 +21,5 @@
 
 (println (car (cons 1 2))) ;; 1
 (println (cdr (cons 1 2))) ;; 2
+
+(println ((cons 1 2) 3)) ;; 2
