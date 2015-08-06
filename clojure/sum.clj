@@ -29,5 +29,3 @@
   (* (sum f (+ a (/ dx 2.0)) add-dx b) dx))
 
 (println (integral cube 0 1 0.001))
-
-
