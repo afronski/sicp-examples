@@ -7,11 +7,10 @@
 ;; of our barrier.
 
 (defn cons [x y]
-  (defn dispatch [m]
+  (fn [m]
     (cond (= m 0) x
           (= m 1) y
-          :else (assert (or (= m 1) (= m 0)) "Argument should be 0 or 1.")))
-  dispatch)
+          :else (assert (or (= m 1) (= m 0)) "Argument should be 0 or 1."))))
 
 ;; Those functions are selectors, second
 ;; part of our barrier.
