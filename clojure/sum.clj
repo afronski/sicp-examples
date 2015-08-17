@@ -18,12 +18,12 @@
 (defn pi-sum [ a b ]
   (letfn [ (pi-term [ x ] (/ 1.0 (* x (+ x 2))))
            (pi-next [ x ] (+ x 4)) ]
-  (sum pi-term a pi-next b)))
+    (sum pi-term a pi-next b)))
 
 (println (* 8 (pi-sum 1 1000)))
 
 (defn integral [ f a b dx ]
   (letfn [ (add-dx [ x ] (+ x dx)) ]
-  (* (sum f (+ a (/ dx 2.0)) add-dx b) dx)))
+    (* (sum f (+ a (/ dx 2.0)) add-dx b) dx)))
 
 (println (integral cube 0 1 0.001))
