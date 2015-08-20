@@ -23,11 +23,5 @@
 
 (def account (make-account 100 "admin1"))
 
-(defn op->symbol [op]
-  (condp = op
-    'withdraw "-"
-    'deposit "+"
-    "?"))
-
 (doseq [i (range 1 10)]
   (println (str "Account (-" i " $):") (account "nope" 'withdraw i)))
