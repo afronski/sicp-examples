@@ -8,7 +8,7 @@
         (condp = operation
           'withdraw (withdraw amount)
           'deposit (deposit amount)
-          (assert false (str "Unexpected operation: " operation)))))))
+          (assert false (str "Unexpected operation:" operation)))))))
 
 (def account-1 (make-account 100))
 (def account-2 (make-account 100))
