@@ -1,51 +1,65 @@
-;; Helpers.
+;; Constructors.
 
-(defn front-ptr [q] (first @q))
-(defn rear-ptr [q] (second @q))
-
-(defn make-queue-internals [f r]
-  (list f r))
-
-(defn set-front-ptr! [q e]
-  (if (nil? e)
-    (reset! q (make-queue-internals (list) (rear-ptr q)))
-    (reset! q (make-queue-internals e (rear-ptr q)))))
-
-(defn set-rear-ptr! [q e]
-  (reset! q (make-queue-internals (front-ptr q) e)))
-
-(defn print-queue [q]
-  (println (front-ptr q)))
-
-;; Constructor.
+(defn make-element [e next]
+  (atom [e next]))
 
 (defn make-queue []
-  (atom (make-queue-internals (list) nil)))
+  (atom [nil nil]))
+
+;; Helpers.
+
+(defn value [e] (first @e))
+(defn next-element [e] (second @e))
+
+(defn front [q] (first @q))
+(defn rear [q] (second @q))
+
+(defn serialize-element [e]
+  (str (value e) " <- "))
+
+(defn print-queue [q]
+  (letfn [(print-element [e]
+            (if (nil? e)
+              (print "END")
+              (do (print (serialize-element e))
+                  (recur (next-element e)))))]
+    (print-element (front q))
+    (print "\n")))
+
+(defn set-front-ptr! [q f]
+  (reset! q [f (rear q)]))
+
+(defn set-rear-ptr! [q r]
+  (reset! q [(front q) r]))
+
+(defn change-next [e n]
+  (reset! e [(value e) n]))
 
 ;; Selectors.
 
 (defn empty-queue? [q]
-  (empty? (front-ptr q)))
+  (nil? (front q)))
 
 (defn front-queue [q]
   (if (empty-queue? q)
-    (assert false "Accessing front of the empty queue.")
-    (first (front-ptr @q))))
+    (assert false "Trying to get front of an empty queue.")
+    (value (front q))))
 
 ;; Modifiers.
 
-(defn insert-queue! [q e]
-  (if (empty-queue? q)
-    (do (set-front-ptr! q (list e))
-        (set-rear-ptr! q e))
-    (do (reset! q (make-queue-internals (conj (front-ptr q) e) e))
-        (set-rear-ptr! q e)))
+(defn insert-queue! [q v]
+  (let [new (make-element v nil)]
+    (if (empty-queue? q)
+      (do (set-front-ptr! q new)
+          (set-rear-ptr! q new))
+      (do (change-next (rear q) new)
+          (set-rear-ptr! q new))))
   q)
 
 (defn delete-queue! [q]
   (if (empty-queue? q)
-    (assert false "Deleting from the empty queue.")
-    (set-front-ptr! q (butlast (front-ptr q))))
+    (assert false "Deleting element from an empty queue.")
+    (set-front-ptr! q (next-element (front q))))
   q)
 
 ;; Main program.
