@@ -6,8 +6,8 @@
 ;; Signals.
 
 (defn get-signal [wire] (wire :get-signal))
-(defn set-signal! [wire v] (wire :set-signal! v))
-(defn add-action! [wire p] (wire :add-action! p))
+(defn set-signal! [wire v] ((wire :set-signal!) v))
+(defn add-action! [wire p] ((wire :add-action!) p))
 
 ;; Wires.
 
@@ -16,11 +16,11 @@
         effects (atom (list))]
     (letfn [(set-signal! [new]
               (if (not (= signal new))
-                (do (swap! signal new)
+                (do (reset! signal new)
                     (invoke-all @effects))
                 :done))
 
-            (accept-action! [procedure]
+            (add-action! [procedure]
               (swap! effects conj procedure)
               (procedure))
 
@@ -29,37 +29,50 @@
                 :get-signal @signal
                 :set-signal! set-signal!
                 :add-action! add-action!
-                assert false (str "Unknown operation " action " in make-wire.")))]
+                (assert false (str "Unknown operation " action " in make-wire."))))]
       dispatch)))
 
 ;; Agenda.
 
-(defn make-time-segment [time queue]
-  (atom [time queue]))
+(defn make-queue []
+  (atom (clojure.lang.PersistentQueue/EMPTY)))
+
+(defn insert-queue! [q v]
+  (swap! q conj v))
+
+(defn delete-queue! [q]
+  (swap! q pop))
+
+(defn empty-queue? [q]
+  (or (nil? q)
+      (empty? @q)))
+
+(defn front-queue [q]
+  (first @q))
+
+(defn make-segment [time queue]
+  (atom {:time time :queue queue}))
 
 (defn segment-time [segment]
-  (first @segment))
+  (:time @segment))
 
 (defn segment-queue [segment]
-  (second @segment))
-
-(defn delete-queue! [segment]
-  (reset! segment [(segment-time segment) nil]))
+  (:queue @segment))
 
 (defn make-agenda []
-  (atom [0 nil])
+  (atom {:current 0 :segments nil}))
 
 (defn current-time [agenda]
-  (first @agenda))
+  (:current @agenda))
 
 (defn segments [agenda]
-  (second @agenda))
+  (:segments @agenda))
 
 (defn set-current-time! [agenda t]
-  (reset! agenda [t (segments agenda)]))
+  (swap! agenda assoc :current t))
 
 (defn set-segments! [agenda s]
-  (reset! agenda [(current-time agenda) s]))
+  (swap! agenda assoc :segments s))
 
 (defn first-segment [agenda]
   (first (segments agenda)))
@@ -68,42 +81,51 @@
   (rest (segments agenda)))
 
 (defn empty-agenda? [agenda]
-  (nil? (segments agenda)))
-
-;; FIXME: Use more advanced Clojure data structures.
-;; FIXME: Maybe also agent?
+  (empty? (segments agenda)))
 
 (defn add-to-agenda! [time action agenda]
-  (letfn [(belongs-before? [segments]
-            (or (nil? segments)
-                (< time (segment-time (first segments)))))
+  (letfn [(belongs-before? [slices]
+            (or (empty? slices)
+                (< time (segment-time (first slices)))))
 
-          (add-to-segments! [segments]
-            (if (= (segment-time (first segments)) time)
-              (conj action (segment-queue (first segments)))
-              (let [rest-segments (rest segments)]
-                (if (belongs-before? rest-segments)
-                  (reset! segments conj (make-time-segment time [action]) rest-segments)
-                  (add-to-segments! rest-segments)))))]
-    (let [segments (segments agenda)]
-      (if (belongs-before? segments)
-        (set-segments!
-         agenda
-         (conj (make-time-segment time [action]) segments))
-        (add-to-segments! segments)))))
+          (make-new-time-segment [time action]
+            (let [q (make-queue)]
+              (insert-queue! q action)
+              (make-segment time q)))
+
+          (insert-to-segments! [slices index]
+            (let [[before after] (split-at index slices)]
+              (if (empty? after)
+                (set-segments! agenda (vec (concat slices
+                                                   (list (make-new-time-segment time action)))))
+
+                (if (= (segment-time (first after)) time)
+                  (insert-queue! (segment-queue (first after))
+                                 action)
+
+                  (if (belongs-before? after)
+                    (set-segments! agenda (vec (concat before
+                                                       (list (make-new-time-segment time action))
+                                                       after)))
+
+                    (recur slices (inc index)))))))]
+    (let [slices (segments agenda)]
+      (if (belongs-before? slices)
+        (set-segments! agenda (into [] (conj slices (make-new-time-segment time action))))
+        (insert-to-segments! slices 1)))))
 
 (defn remove-first-agenda-item! [agenda]
   (let [q (segment-queue (first-segment agenda))]
     (delete-queue! q)
-    (when (empty-agenda? q)
+    (if (empty-queue? q)
       (set-segments! agenda (rest-segments agenda)))))
 
 (defn first-agenda-item [agenda]
   (if (empty-agenda? agenda)
-    (assert false "Agenda is empty.")
-    (let [first-segment (first-segment agenda)]
-      (set-current-time! agenda (segment-time first-segment))
-      (first (segment-queue first-segment)))))
+    (assert false "Getting first item from an empty agenda.")
+    (let [nearest (first-segment agenda)]
+      (set-current-time! agenda (segment-time nearest))
+      (front-queue (segment-queue nearest)))))
 
 (def the-agenda (make-agenda))
 
@@ -123,8 +145,9 @@
                   the-agenda))
 
 (defn probe [name wire]
-  (add-action! wire (fn ()
-                      (println (str name " " (current-time the-agenda) " New value = " (get-signal wire))))))
+  (add-action! wire
+               (fn [] (println (str name " " (current-time the-agenda)
+                                    " New value = " (get-signal wire))))))
 
 ;; Gates.
 
@@ -136,7 +159,7 @@
   (letfn [(not-input []
             (let [new (not (get-signal input))]
               (propagation not-gate-delay #(set-signal! output new))))]
-    (add-action! input invert-input)
+    (add-action! input not-input)
     :ok))
 
 (defn and-gate [a1 a2 output]
@@ -179,15 +202,15 @@
 
 ;; Simulation.
 
-(defn input-1 (make-wire))
-(defn input-2 (make-wire))
-(defn sum (make-wire))
-(defn carry (make-wire))
+(def input-1 (make-wire))
+(def input-2 (make-wire))
+(def sum (make-wire))
+(def carry (make-wire))
 
 (probe :sum sum)
 (probe :carry carry)
 
-(half-adder input-1 input2 sum carry)
+(half-adder input-1 input-2 sum carry)
 
 (set-signal! input-1 true)
 (step)
